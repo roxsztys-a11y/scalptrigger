@@ -1,0 +1,95 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101827">
+<title>ScalpTrigger</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b1120;color:#e8eef8;font:15px Arial,sans-serif}
+main{max-width:700px;margin:auto;padding:18px}
+h1{color:#61e6b1;margin-bottom:4px}
+.sub,.note{color:#9cabc2}
+.panel{background:#131e30;border:1px solid #26344b;border-radius:14px;padding:16px;margin:15px 0}
+h2{font-size:17px}
+.grid,.results{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{display:block;color:#aebbd0;font-size:12px;margin-bottom:6px}
+input{width:100%;padding:12px;background:#0b1423;border:1px solid #34445d;border-radius:8px;color:white;font-size:16px}
+button{width:100%;padding:14px;background:#61e6b1;border:0;border-radius:9px;font-weight:bold;margin-top:15px}
+.tile{background:#0b1423;padding:12px;border-radius:9px;overflow-wrap:anywhere}
+.tile small{display:block;color:#aebbd0;margin-bottom:7px}
+.value{font-size:17px;font-weight:bold}
+.green{color:#61e6b1}.red{color:#ff7e89}
+.note{font-size:12px;line-height:1.5}
+.status{background:#202c40;padding:12px;border-radius:8px;margin:10px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>ScalpTrigger</h1>
+<div class="sub">BEI Scalping Planner · Alert-only</div>
+<div class="panel">
+<h2>Parameter Trading</h2>
+<div class="grid">
+<div><label>Kode saham</label><input id="ticker" value="BBCA"></div>
+<div><label>Modal (Rp)</label><input id="capital" type="number" value="4000000"></div>
+<div><label>Risiko/trade (%)</label><input id="riskPct" type="number" value="1" step=".1"></div>
+<div><label>Batas rugi harian (%)</label><input id="dailyPct" type="number" value="2" step=".1"></div>
+<div><label>Entry (Rp)</label><input id="entry" type="number" value="1000"></div>
+<div><label>Stop loss (Rp)</label><input id="sl" type="number" value="980"></div>
+<div><label>Take profit (Rp)</label><input id="tp" type="number" value="1040"></div>
+<div><label>Fee beli (%)</label><input id="buyFee" type="number" value=".15" step=".01"></div>
+<div><label>Fee jual (%)</label><input id="sellFee" type="number" value=".25" step=".01"></div>
+</div>
+<button onclick="calculate()">Hitung Rencana</button>
+</div>
+<div class="panel">
+<h2>Hasil Perhitungan</h2>
+<div id="status" class="status">Masukkan rencana trading.</div>
+<div class="results">
+<div class="tile"><small>Batas risiko/trade</small><div id="budget" class="value">—</div></div>
+<div class="tile"><small>Batas rugi harian</small><div id="daily" class="value">—</div></div>
+<div class="tile"><small>Ukuran posisi</small><div id="lots" class="value">—</div></div>
+<div class="tile"><small>Nilai pembelian</small><div id="position" class="value">—</div></div>
+<div class="tile"><small>Estimasi rugi SL</small><div id="loss" class="value red">—</div></div>
+<div class="tile"><small>Estimasi laba TP</small><div id="profit" class="value green">—</div></div>
+<div class="tile"><small>Risk/reward</small><div id="rr" class="value">—</div></div>
+<div class="tile"><small>Entry / SL / TP</small><div id="levels" class="value">—</div></div>
+</div>
+<p class="note">Asumsi 1 lot = 100 saham. Sesuaikan fee dengan tarif broker aktual. Estimasi belum memperhitungkan slippage atau harga eksekusi yang berbeda.</p>
+</div>
+<div class="panel">
+<h2>Status Sistem</h2>
+<div class="status">Mode: Manual / simulasi</div>
+<p class="note">Belum terhubung ke feed BEI real-time. Belum memindai saham otomatis dan belum mengirim notifikasi server. Bukan rekomendasi beli atau jual.</p>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const n=id=>Number($(id).value);
+const rp=x=>Number.isFinite(x)?x.toLocaleString("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}):"—";
+function calculate(){
+let c=n("capital"),r=n("riskPct"),d=n("dailyPct"),e=n("entry"),s=n("sl"),t=n("tp"),b=n("buyFee")/100,f=n("sellFee")/100;
+$("budget").textContent=rp(c*r/100);
+$("daily").textContent=rp(c*d/100);
+$("levels").textContent=[e,s,t].map(x=>Number.isFinite(x)?x.toLocaleString("id-ID"):"—").join(" / ");
+if(![c,r,d,e,s,t,b,f].every(Number.isFinite)||c<=0||r<=0||d<=0||e<=s||s<=0||t<=e||b<0||f<0){
+$("status").textContent="Input tidak valid. Pastikan entry > SL, TP > entry, dan modal positif.";
+["lots","position","loss","profit","rr"].forEach(id=>$(id).textContent="—");return;
+}
+let budget=c*r/100, riskLot=(e-s+e*b+s*f)*100,costLot=e*100*(1+b);
+let lots=Math.max(0,Math.min(Math.floor(budget/riskLot),Math.floor(c/costLot)));
+let sh=lots*100,loss=sh*((e-s)+e*b+s*f),profit=sh*((t-e)-e*b-t*f);
+$("lots").textContent=lots+" lot";
+$("position").textContent=rp(sh*e);
+$("loss").textContent=rp(loss);
+$("profit").textContent=rp(profit);
+$("rr").textContent=(loss>0?profit/loss:0).toFixed(2)+" : 1";
+$("status").textContent=lots?"Perhitungan selesai. Verifikasi harga dan likuiditas sebelum mengambil keputusan.":"Dana atau batas risiko belum cukup untuk 1 lot.";
+}
+calculate();
+</script>
+</body>
+</html>
